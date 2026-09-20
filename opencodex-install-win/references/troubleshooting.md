@@ -52,6 +52,21 @@ Get-NetTCPConnection -State Listen -LocalPort 7890,10100 -ErrorAction SilentlyCo
     Select-Object LocalAddress,LocalPort,OwningProcess
 ```
 
+After installation, configure the proxy tool's HTTP or Mixed port as `7890`. A SOCKS-only port is not valid for the default `http://127.0.0.1:7890` setting.
+
+## Replace or roll back CC-Switch
+
+The installer recognizes CC-Switch when the root Codex setting is `model_provider = "openai-http"`. It creates `config.toml.before-opencodex-<timestamp>.bak`, switches Codex to the built-in `openai` provider, retains the old provider table, and runs `ocx sync`.
+
+Verify the active route:
+
+```powershell
+Select-String -Path "$env:USERPROFILE\.codex\config.toml" -Pattern '^model_provider|^openai_base_url'
+ocx health --json
+```
+
+To roll back, stop using OpenCodex first, then restore the timestamped backup only after confirming its exact path. Do not delete all `.bak` files by wildcard.
+
 ## Diagnostics
 
 ```powershell
