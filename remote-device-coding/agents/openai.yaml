@@ -1,4 +1,4 @@
 interface:
   display_name: "Remote Device Coding"
-  short_description: "Safely edit and verify code on LAN servers over SSH"
-  default_prompt: "Use $remote-device-coding to modify code on a LAN server without touching the local project."
+  short_description: "Safely edit code in local WSL or remote Linux projects"
+  default_prompt: "Use $remote-device-coding to modify code in a local WSL or remote Linux project without touching the Windows workspace."
