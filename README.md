@@ -10,6 +10,7 @@
 |---|---|
 | 让 Agent 默认用中文、少改代码、先查根因 | [`coding-agents/codex/AGENTS.md`](coding-agents/codex/AGENTS.md) |
 | 给会话起一个能检索的标题 | [`skills/codex-session-namer/`](skills/codex-session-namer/SKILL.md) |
+| 主导开发委派、审查与集成 | [`skills/lead-delegation/`](skills/lead-delegation/SKILL.md) |
 | 在 Windows 上装/修 OpenCodex 或替换 CC-Switch 路由 | [`skills/opencodex-install-win/`](skills/opencodex-install-win/SKILL.md) |
 | 改本机 WSL / 局域网服务器 / 嵌入式设备上的代码 | [`skills/remote-device-coding/`](skills/remote-device-coding/SKILL.md) |
 | 给 X 文章配布偶猫封面和插图 | [`skills/x-article-cat-visual/`](skills/x-article-cat-visual/SKILL.md) |
@@ -27,6 +28,11 @@
 │   │   ├── SKILL.md
 │   │   ├── agents/openai.yaml
 │   │   └── references/research.md        命名规则的官方资料依据
+│   ├── lead-delegation/
+│   │   ├── SKILL.md
+│   │   ├── agents/openai.yaml
+│   │   ├── references/task-template.md
+│   │   └── references/review-checklist.md
 │   ├── opencodex-install-win/
 │   │   ├── SKILL.md
 │   │   ├── agents/openai.yaml
@@ -147,6 +153,7 @@
 | 技能 | 需要的外部能力 |
 |---|---|
 | `codex-session-namer` | 能列出并重命名 Codex 会话（App Server / 会话管理能力） |
+| `lead-delegation` | codexhost 与 codexhost-delegation |
 | `opencodex-install-win` | Windows + PowerShell 7 + Node.js 18+ + npm；代理工具（Clash/Mihomo/Vortex 等） |
 | `remote-device-coding` | `wsl.exe` 或 OpenSSH；可选 Paramiko、`sshpass`/`plink`；目标环境自带构建链 |
 | `x-article-cat-visual` | 生图工具；可选 Python + Pillow（做精确尺寸导出） |
