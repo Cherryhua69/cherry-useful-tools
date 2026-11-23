@@ -1,6 +1,6 @@
 ---
 name: remote-device-coding
-description: Use when modifying code in local WSL projects, LAN servers, embedded Linux devices, SSH-only build machines, or remote project directories while explicitly avoiding edits to the Windows/local workspace.
+description: Use when inspecting or modifying a project in local WSL or on an SSH target while keeping project operations off the Windows/local workspace.
 ---
 
 # Remote Device Coding
@@ -25,37 +25,34 @@ description: Use when modifying code in local WSL projects, LAN servers, embedde
 2. 连通性检查：Local WSL 用 `wsl.exe --list --quiet` 和目标发行版内的无副作用命令；SSH Remote 用 `ping` / `Test-NetConnection` / `ssh -o BatchMode=yes`。不要把密码写入技能、仓库、脚本或日志文件。
 3. 进入目标项目：在选定环境内执行 `pwd`、`ls`、`git status --short`、`git branch --show-current`，确认实际路径和工作区状态。
 4. 理解代码：在目标环境内使用 `rg`、`find`、`grep`、构建脚本和测试配置定位调用链；不要在 Windows 本地项目目录复制或改写同名文件。
-5. 修改代码：所有写入必须发生在目标环境的项目路径内。SSH Remote 优先生成远端补丁并用 `git apply --check && git apply`；Local WSL 直接调用发行版内已有的编辑/补丁工具，小改动前后都查看 diff。
+5. 按授权执行：只读任务完成第 4 步后汇报源码证据，不创建探测文件、不应用补丁。修改任务通过下方写入检查后再编辑。SSH Remote 优先用 `git apply --check && git apply`；Local WSL 使用发行版内已有的编辑工具。项目改动全部落在目标项目，改动前后查看 diff。
 6. 验证结果：在同一目标环境运行最小可行验证，例如单测、编译、lint、目标模块构建或命令行自检。
 7. 汇报交付：说明目标模式、发行版或远端主机、实际项目路径、改了什么、执行了哪些验证、是否有未提交改动，以及无法验证的原因。
 
 ## Ready Gate
 
-发现 WSL 发行版或目标服务器网络可达只代表第一步成功。调用本技能后，只有同时满足下面条件，才可以继续代码修改或回复“连接成功”：
+### 目标身份与源码证据（只读和修改任务）
 
 - Local WSL：目标发行版能启动，并确认发行版名称、`uname -a`、`whoami`、`pwd` 与用户目标一致。用户未指定发行版时，可以使用默认发行版；存在多个发行版且默认项无法确定对应项目时，先通过只读检查定位，仍有歧义再询问用户。
 - SSH Remote：SSH 登录成功，并确认 `hostname`、`whoami`、`pwd` 与用户给定目标一致。
 - 目标项目路径存在，目标子目录存在，能执行 `ls` / `find` / `rg` 等只读代码检索。
 - 已检查项目工作区状态，例如 `git status --short`；如果不是 Git 项目，要说明用什么方式追踪改动。
-- 已确认目标项目具有必要读写权限：能读取关键源码，能在项目目录或允许的临时目录创建和删除探测文件。
-- 已确认补丁写入路径可用：能写入目标环境的 `/tmp` 或项目允许的临时补丁文件，并能执行 `git apply --check` 或等价检查。
 - 已理解目标代码结构：至少确认入口文件、相关模块、调用链、构建/运行脚本、验证方式，以及本次需求可能影响的文件范围。
 - 如果权限不足、路径不一致、代码理解不完整或只能 HTTP 访问，只能回复具体阻塞原因，不能说“目标项目连接成功且代码理解完成”。
 
-权限探测要使用无害文件名，并立即清理：
+只有核对目标身份、路径、Git 状态和源码后，才报告“目标项目连接成功且代码理解完成”。按任务列出入口、调用链和验证证据。
+
+### 写入检查（仅修改任务）
+
+核对用户授权的路径与改动范围，再检查实际编辑目录和所用工具。采用补丁时，在目标仓库对实际补丁运行 `git apply --check`。需要探测写权限时，在待编辑目录内创建唯一临时文件并立即清理：
 
 ```bash
-cd /path/to/project
-touch .codex_write_probe && rm -f .codex_write_probe
-tmp_patch="/tmp/codex_patch_probe_$$.patch"
-printf '' > "$tmp_patch" && rm -f "$tmp_patch"
+cd /path/to/edit-directory &&
+probe=$(mktemp .codex-write-probe.XXXXXX) &&
+rm -f -- "$probe"
 ```
 
-完成 Ready Gate 后，回复必须包含这句话：
-
-```text
-目标项目连接成功且代码理解完成。
-```
+权限或补丁检查失败时，报告目标路径、失败命令和错误。用户反馈目标选错或验证环境不一致时，重新核对身份、工作目录与仓库，再在确认的环境重跑受影响的检查。
 
 ## Local WSL Mode
 
@@ -197,7 +194,7 @@ git diff -- path/file.c
 | 只给 WSL 项目名 | 在 `~/projects`、`~/work`、`~/src` 等有限范围查找，再用 Git 和项目元数据确认 |
 | 只确认设备在线 | `ping` / `Test-Connection`，再测 22 端口 |
 | 确认远端项目 | `ssh user@host "cd /path && pwd && ls"` |
-| 确认读写权限 | `touch .codex_write_probe && rm -f .codex_write_probe` |
+| 确认写权限（修改任务） | 参照上方写入检查，在实际编辑目录探测 |
 | 确认代码理解 | 找到入口、模块、调用链、构建脚本和验证方式 |
 | 查代码 | `ssh user@host "cd /path && rg 'keyword' subdir"` |
 | 看远端改动 | `ssh user@host "cd /path && git diff --stat && git diff"` |

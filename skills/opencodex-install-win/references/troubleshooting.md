@@ -9,18 +9,23 @@ Get-ChildItem Env: | Where-Object Name -Match '^(HTTP_PROXY|HTTPS_PROXY|ALL_PROX
 Select-String -Path "$env:USERPROFILE\.opencodex\opencodex-service.cmd" -Pattern 'HTTP_PROXY|HTTPS_PROXY|NO_PROXY'
 ```
 
-If the wrapper lacks them, set process-only values and repair:
+If the wrapper lacks them, use the endpoint explicitly confirmed by the user. Run the example in a disposable PowerShell session so the environment changes end when that session closes. Set the host to the confirmed host if it differs from loopback.
 
 ```powershell
-$env:HTTP_PROXY='http://127.0.0.1:7890'
-$env:HTTPS_PROXY='http://127.0.0.1:7890'
+$proxyPort = 0
+if (-not [int]::TryParse((Read-Host "Enter your HTTP/Mixed proxy port"), [ref]$proxyPort) -or
+    $proxyPort -lt 1 -or $proxyPort -gt 65535) {
+    throw 'Enter an explicit HTTP/Mixed proxy port between 1 and 65535.'
+}
+$env:HTTP_PROXY = "http://127.0.0.1:${proxyPort}"
+$env:HTTPS_PROXY = $env:HTTP_PROXY
 $env:NO_PROXY='localhost,127.0.0.1,::1'
 Remove-Item Env:ALL_PROXY -ErrorAction SilentlyContinue
 ocx service repair
 ocx service restart
 ```
 
-Then verify health. Only the user runs `ocx account login codex --device`.
+Verify the wrapper contains the confirmed endpoint and run `ocx service status` and `ocx health --json`. Only the user runs `ocx account login codex --device`.
 
 ## `ENAMETOOLONG` during service repair/restart
 
@@ -45,14 +50,15 @@ Do not kill an unidentified process or create a duplicate scheduled task.
 
 ## Port confusion
 
-`7890` is usually Clash/Mihomo/Vortex's outbound proxy. OpenCodex normally listens on `10100`. Inspect ownership before changing either:
+The user-specified HTTP/Mixed port belongs to the outbound proxy tool. OpenCodex normally listens on `10100`. Inspect ownership before changing either:
 
 ```powershell
-Get-NetTCPConnection -State Listen -LocalPort 7890,10100 -ErrorAction SilentlyContinue |
+$proxyPort = [int](Read-Host "Enter your HTTP/Mixed proxy port")
+Get-NetTCPConnection -State Listen -LocalPort $proxyPort,10100 -ErrorAction SilentlyContinue |
     Select-Object LocalAddress,LocalPort,OwningProcess
 ```
 
-After installation, configure the proxy tool's HTTP or Mixed port as `7890`. A SOCKS-only port is not valid for the default `http://127.0.0.1:7890` setting.
+Keep the proxy tool running on the HTTP/Mixed port supplied during installation. A SOCKS-only port cannot serve the configured HTTP proxy URL.
 
 ## Replace or roll back CC-Switch
 

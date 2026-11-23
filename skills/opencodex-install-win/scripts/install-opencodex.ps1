@@ -1,11 +1,18 @@
 [CmdletBinding()]
 param(
-    [string]$ProxyUrl = 'http://127.0.0.1:7890',
-    [switch]$NoProxy,
+    [Parameter(Mandatory)]
+    [string]$ProxyUrl,
     [switch]$SkipCcSwitchMigration
 )
 
 $ErrorActionPreference = 'Stop'
+
+$uri = $null
+if ($ProxyUrl -notmatch '^https?://(?:\[[0-9a-f:.]+\]|[^:/?#@\s]+):[0-9]{1,5}/?$' -or
+    -not [Uri]::TryCreate($ProxyUrl, [UriKind]::Absolute, [ref]$uri) -or
+    $uri.Port -lt 1) {
+    throw 'Supply -ProxyUrl with an explicit HTTP/Mixed proxy port (http://127.0.0.1:<port>).'
+}
 
 function Invoke-Native {
     param(
@@ -43,26 +50,15 @@ foreach ($key in $proxyKeys) {
 }
 
 try {
-    if (-not $NoProxy) {
-        $uri = [Uri]$ProxyUrl
-        if ($uri.Scheme -notin @('http', 'https')) {
-            throw 'ProxyUrl must be an HTTP or HTTPS proxy URL, for example http://127.0.0.1:7890.'
-        }
-        $proxyListening = Test-NetConnection -ComputerName $uri.Host -Port $uri.Port -InformationLevel Quiet
-        if (-not $proxyListening) {
-            Write-Warning "The proxy endpoint is not listening yet: $($uri.Host):$($uri.Port). Installation will continue; configure and start the proxy tool before using OpenCodex upstream requests."
-        }
+    $proxyListening = Test-NetConnection -ComputerName $uri.Host -Port $uri.Port -InformationLevel Quiet
+    if (-not $proxyListening) {
+        Write-Warning "The proxy endpoint is not listening yet: $($uri.Host):$($uri.Port). Installation will continue; configure and start the proxy tool before using OpenCodex upstream requests."
+    }
 
-        $env:HTTP_PROXY = $ProxyUrl
-        $env:HTTPS_PROXY = $ProxyUrl
-        $env:NO_PROXY = 'localhost,127.0.0.1,::1'
-        Remove-Item Env:ALL_PROXY -ErrorAction SilentlyContinue
-    }
-    else {
-        foreach ($key in $proxyKeys) {
-            Remove-Item "Env:$key" -ErrorAction SilentlyContinue
-        }
-    }
+    $env:HTTP_PROXY = $ProxyUrl
+    $env:HTTPS_PROXY = $ProxyUrl
+    $env:NO_PROXY = 'localhost,127.0.0.1,::1'
+    Remove-Item Env:ALL_PROXY -ErrorAction SilentlyContinue
 
     Invoke-Native npm install -g '@bitkyc08/opencodex'
     Invoke-Native ocx --version
@@ -83,18 +79,16 @@ try {
         throw 'OpenCodex service is not healthy after installation. Run: ocx service status'
     }
 
-    if (-not $NoProxy) {
-        $openCodexHome = if ($env:OPENCODEX_HOME) { $env:OPENCODEX_HOME } else { Join-Path $env:USERPROFILE '.opencodex' }
-        $wrapper = Join-Path $openCodexHome 'opencodex-service.cmd'
-        if (-not (Test-Path -LiteralPath $wrapper)) {
-            throw "Task Scheduler service wrapper not found: $wrapper"
-        }
-        $wrapperText = Get-Content -Raw -LiteralPath $wrapper
-        if ($wrapperText -notmatch [regex]::Escape("HTTP_PROXY=$ProxyUrl") -or
-            $wrapperText -notmatch [regex]::Escape("HTTPS_PROXY=$ProxyUrl") -or
-            $wrapperText -notmatch [regex]::Escape('NO_PROXY=localhost,127.0.0.1,::1')) {
-            throw 'The service is healthy, but its wrapper does not contain the requested outbound proxy. Run: ocx service repair'
-        }
+    $openCodexHome = if ($env:OPENCODEX_HOME) { $env:OPENCODEX_HOME } else { Join-Path $env:USERPROFILE '.opencodex' }
+    $wrapper = Join-Path $openCodexHome 'opencodex-service.cmd'
+    if (-not (Test-Path -LiteralPath $wrapper)) {
+        throw "Task Scheduler service wrapper not found: $wrapper"
+    }
+    $wrapperText = Get-Content -Raw -LiteralPath $wrapper
+    if ($wrapperText -notmatch [regex]::Escape("HTTP_PROXY=$ProxyUrl") -or
+        $wrapperText -notmatch [regex]::Escape("HTTPS_PROXY=$ProxyUrl") -or
+        $wrapperText -notmatch [regex]::Escape('NO_PROXY=localhost,127.0.0.1,::1')) {
+        throw 'The service is healthy, but its wrapper does not contain the requested outbound proxy. Run: ocx service repair'
     }
 
     Invoke-Native ocx service status
@@ -151,12 +145,10 @@ finally {
 
 Write-Host ''
 Write-Host 'OpenCodex is installed and the background service is healthy.' -ForegroundColor Green
-if (-not $NoProxy) {
-    Write-Host "Outbound proxy baked into the service: $ProxyUrl"
-    Write-Host 'Required: set your proxy tool HTTP/Mixed port to 7890 and keep it running.' -ForegroundColor Yellow
-    if (-not $proxyListening) {
-        Write-Host 'Port 7890 is not listening now; OpenCodex upstream requests will fail until the proxy tool is configured and started.' -ForegroundColor Yellow
-    }
+Write-Host "Outbound proxy baked into the service: $ProxyUrl"
+Write-Host "Keep your proxy tool running on HTTP/Mixed port $($uri.Port)." -ForegroundColor Yellow
+if (-not $proxyListening) {
+    Write-Host "Port $($uri.Port) is not listening now. Start the proxy tool to enable upstream requests." -ForegroundColor Yellow
 }
 Write-Host 'OAuth remains a user action. Run this yourself:' -ForegroundColor Yellow
 Write-Host '  ocx account login codex --device'

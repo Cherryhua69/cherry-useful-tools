@@ -96,7 +96,7 @@
 4. 校验包装器里确实含 `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`，并检查 `ocx health --json` 的 `ok` 为真。
 5. 仅当 root 是 `model_provider = "openai-http"`（CC-Switch 特征）时才迁移：备份 `config.toml.before-opencodex-<时间戳>.bak` → 切到内置 `openai` → 保留原 provider 表以便回滚 → `ocx sync` → 断言出现 `openai_base_url = "http://127.0.0.1:10100/v1"`，并还原用户原有的 `service_tier`。识别到其他外部 provider 时只警告，不动。
 
-**最容易混的两个端口**：`10100` 是 OpenCodex 的监听端口，`7890` 是代理工具的 HTTP/Mixed **出口**端口。只开 SOCKS 端口不满足默认配置。
+**最容易混的两个端口**：`10100` 是 OpenCodex 的监听端口。HTTP/Mixed 出口端口由使用者明确提供，通过 `-ProxyUrl` 传入带端口的地址。
 
 **OAuth 永远是用户动作**：脚本最后只打印 `ocx account login codex --device`，不等待、不捕获、不存储设备码、邮箱、`auth.json`、API token。
 
